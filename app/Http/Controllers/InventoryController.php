@@ -8,6 +8,7 @@ use App\Models\Sale;
 use App\Models\Stock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
@@ -39,7 +40,7 @@ class InventoryController extends Controller
         $products = Product::withCount('stocks')
             ->orderBy('name', 'asc')
             ->take(10)
-            ->get();
+            ->paginate(20);
 
         return \response()->json([
             'products' => $products,
@@ -91,7 +92,7 @@ class InventoryController extends Controller
     public function stocks(string $id)
     {
         $product = Product::find($id);
-        $stocks = Stock::where('product_id', $id)->get();
+        $stocks = Stock::where('product_id', $id)->paginate(20);
 
         return response()->json([
             'stocks' => $stocks,
@@ -120,7 +121,8 @@ class InventoryController extends Controller
             $query->where('name', 'LIKE', "%{$keyword}%");
         }
 
-        $products = $query->get();
+        $products = $query
+            ->paginate(20);
 
         return \response()->json($products, ResponseAlias::HTTP_OK);
     }
@@ -138,6 +140,18 @@ class InventoryController extends Controller
         $receipts = $query->get();
 
         return \response()->json($receipts, ResponseAlias::HTTP_OK);
+    }
+
+    public function loadPrintData(string $reference)
+    {
+        $receipt = Receipt::where('reference', $reference)
+            ->with(['user', 'sales.product'])
+            ->first();
+
+        return response()->json([
+            'receipt' => $receipt,
+            'sales' => $receipt->sales,
+        ], ResponseAlias::HTTP_OK);
     }
 
     /*
@@ -191,71 +205,96 @@ class InventoryController extends Controller
         ], ResponseAlias::HTTP_CREATED);
     }
 
+
+    /**
+     * @throws \Throwable
+     */
     public function saleStore(Request $request)
     {
         $items = $request->input('sales');
         $totalPrice = $request->input('total');
         $cash = $request->input('cash');
         $customerName = $request->input('customer');
-        if ($totalPrice - $cash < 1) {
-            $paid = true;
-        } else {
-            $paid = false;
-        }
 
+        // Input validation
         if (count($items) === 0) {
             return response()->json([
                 'message' => 'Please select at least one product!',
             ], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
-        foreach ($items as $item) {
-            $stock = Stock::where('product_id', $item['id'])->count();
-            if ($stock < $item['unit']) {
-                $product = Product::find($item['id']);
+        // Use a transaction for data integrity
+        DB::beginTransaction();
 
-                return response()->json([
-                    'message' => "Sorry! This product {$product->name} has only $stock unit left!",
-                ], ResponseAlias::HTTP_BAD_REQUEST);
+        try {
+            // Step 1: Check stock availability
+            foreach ($items as $item) {
+                $stockCount = Stock::where('product_id', $item['id'])->count();
+                if ($stockCount < $item['unit']) {
+                    $product = Product::find($item['id']);
+                    DB::rollBack(); // Rollback before returning
+                    return response()->json([
+                        'message' => "Sorry! This product {$product->name} has only $stockCount unit left!",
+                    ], ResponseAlias::HTTP_BAD_REQUEST);
+                }
             }
-        }
 
-        $receipt = Receipt::orderBy('id', 'desc')->first();
-        if ($receipt) {
-            $lastId = $receipt->id;
-        } else {
-            $lastId = 0;
-        }
+            // Step 2: Create the receipt
+            $lastReceipt = Receipt::latest()->first();
+            $ref = ($lastReceipt ? $lastReceipt->id : 0) + 1;
+            $paid = ($totalPrice - $cash < 1);
 
-        $ref = $lastId + 1;
-        $receipt = Receipt::create([
-            'reference' => str_pad((string) $ref, 10, '0', STR_PAD_LEFT),
-            'amount' => $totalPrice,
-            'user_id' => $request->user()->id,
-            'cash' => $cash,
-            'customer_name' => $customerName,
-            'fully_paid' => $paid,
-        ]);
-
-        foreach ($items as $item) {
-            Stock::where('product_id', $item['id'])
-                ->orderBy('expiration_date', 'asc')
-                ->take($item['unit'])
-                ->delete();
-
-            Sale::create([
+            $receipt = Receipt::create([
+                'reference' => str_pad((string) $ref, 10, '0', STR_PAD_LEFT),
+                'amount' => $totalPrice,
                 'user_id' => $request->user()->id,
-                'product_id' => $item['id'],
-                'receipt_id' => $receipt->id,
-                'quantity' => $item['unit'],
-                'price' => $item['price'],
+                'cash' => $cash,
+                'customer_name' => $customerName,
+                'fully_paid' => $paid,
             ]);
-        }
 
-        return response()->json([
-            'message' => 'Your Receipt Number is '.$receipt->reference,
-            'receipt' => $receipt,
-        ]);
+            // Step 3: Prepare and perform bulk operations
+            $saleData = [];
+            $stockIdsToDelete = [];
+
+            foreach ($items as $item) {
+                $stockItems = Stock::where('product_id', $item['id'])
+                    ->orderBy('expiration_date', 'asc')
+                    ->take($item['unit'])
+                    ->pluck('id');
+
+                $stockIdsToDelete = array_merge($stockIdsToDelete, $stockItems->toArray());
+
+                $saleData[] = [
+                    'user_id' => $request->user()->id,
+                    'product_id' => $item['id'],
+                    'receipt_id' => $receipt->id,
+                    'quantity' => $item['unit'],
+                    'price' => $item['price'],
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            // Execute bulk delete and insert
+            Stock::whereIn('id', $stockIdsToDelete)->delete();
+            Sale::insert($saleData);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Your Receipt Number is ' . $receipt->reference,
+                'receipt' => $receipt,
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            // Log the error for debugging
+            \Log::error($e->getMessage(), ['exception' => $e]);
+            return response()->json([
+                'message' => 'An error occurred during the transaction.',
+            ], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 
     public function printReceiptSubmit(Request $request)
