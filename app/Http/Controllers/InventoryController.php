@@ -2,19 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RefillInventoryJob;
+use App\Jobs\UnfillInventoryJob;
 use App\Models\Product;
 use App\Models\Receipt;
 use App\Models\Sale;
 use App\Models\Stock;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class InventoryController extends Controller
 {
-
     /*
     ===============================================
     * Reading of data
@@ -36,16 +39,11 @@ class InventoryController extends Controller
 
     public function index()
     {
-        $totalProduct = Product::count();
         $products = Product::withCount('stocks')
             ->orderBy('name', 'asc')
-            ->take(10)
-            ->paginate(20);
+            ->get();
 
-        return \response()->json([
-            'products' => $products,
-            'totalProduct' => $totalProduct,
-        ], ResponseAlias::HTTP_OK);
+        return \response()->json($products, ResponseAlias::HTTP_OK);
     }
 
     public function sale()
@@ -75,16 +73,23 @@ class InventoryController extends Controller
     public function receiptReference(string $reference)
     {
         $receipt = Receipt::where('reference', $reference)
-            ->with('user')
+            ->with('user.role')
             ->first();
+
+        if (! $receipt) {
+            return response()->json([
+                'message' => 'Receipt not found',
+            ], ResponseAlias::HTTP_NOT_FOUND);
+        }
 
         return response()->json($receipt, ResponseAlias::HTTP_OK);
     }
 
     public function viewSaleReceipt(string $id)
     {
-        $sales = Sale::with('product')
-            ->where('receipt_id', $id)->get();
+        $sales = Sale::with(['product' => function ($query) {
+            $query->withCount('stocks');
+        }, 'user.role'])->where('receipt_id', $id)->get();
 
         return response()->json($sales, ResponseAlias::HTTP_OK);
     }
@@ -92,24 +97,20 @@ class InventoryController extends Controller
     public function stocks(string $id)
     {
         $product = Product::find($id);
-        $stocks = Stock::where('product_id', $id)->paginate(20);
+        $stocks = Stock::where('product_id', $id)->get();
 
-        return response()->json([
-            'stocks' => $stocks,
-            'product' => $product,
-        ], ResponseAlias::HTTP_OK);
+        return response()->json($stocks, ResponseAlias::HTTP_OK);
     }
 
     public function outstandingReceipt()
     {
         $receipts = Receipt::where('fully_paid', 0)
+            ->with('user.role')
             ->orderBy('id', 'desc')
-            ->take(10)
             ->get();
 
         return response()->json($receipts, ResponseAlias::HTTP_OK);
     }
-
 
     public function loadInventories(Request $request): JsonResponse
     {
@@ -148,10 +149,41 @@ class InventoryController extends Controller
             ->with(['user', 'sales.product'])
             ->first();
 
-        return response()->json([
-            'receipt' => $receipt,
-            'sales' => $receipt->sales,
-        ], ResponseAlias::HTTP_OK);
+        return response()->json($receipt, ResponseAlias::HTTP_OK);
+    }
+
+    public function todaySalesReceipt(Request $request)
+    {
+        $today = Carbon::today();
+        $query = Receipt::with('user.role')
+            ->orderBy('id', 'desc')
+            ->whereDate('created_at', $today);
+
+        if ($request->user()->role_id !== 4) {
+            $receipts = $query->get();
+        } else {
+            $receipts = $query->where('user_id', $request->user()->id)->get();
+        }
+
+        return response()->json($receipts, ResponseAlias::HTTP_OK);
+    }
+
+    public function weeklySalesReceipt(Request $request)
+    {
+        $endOfWeek = Carbon::now()->endOfWeek();
+        $startOfWeek = Carbon::now()->startOfWeek();
+
+        $query = Receipt::with('user.role')
+            ->orderBy('id', 'desc')
+            ->whereBetween('created_at', [$startOfWeek, $endOfWeek]);
+
+        if ($request->user()->role_id !== 4) {
+            $receipts = $query->get();
+        } else {
+            $receipts = $query->where('user_id', $request->user()->id)->get();
+        }
+
+        return response()->json($receipts, ResponseAlias::HTTP_OK);
     }
 
     /*
@@ -205,7 +237,6 @@ class InventoryController extends Controller
         ], ResponseAlias::HTTP_CREATED);
     }
 
-
     /**
      * @throws \Throwable
      */
@@ -229,10 +260,11 @@ class InventoryController extends Controller
         try {
             // Step 1: Check stock availability
             foreach ($items as $item) {
-                $stockCount = Stock::where('product_id', $item['id'])->count();
-                if ($stockCount < $item['unit']) {
-                    $product = Product::find($item['id']);
+                $stockCount = Stock::where('product_id', $item['product']['value'])->count();
+                if ($stockCount < $item['quantity']) {
+                    $product = Product::find($item['product']['value']);
                     DB::rollBack(); // Rollback before returning
+
                     return response()->json([
                         'message' => "Sorry! This product {$product->name} has only $stockCount unit left!",
                     ], ResponseAlias::HTTP_BAD_REQUEST);
@@ -258,19 +290,19 @@ class InventoryController extends Controller
             $stockIdsToDelete = [];
 
             foreach ($items as $item) {
-                $stockItems = Stock::where('product_id', $item['id'])
+                $stockItems = Stock::where('product_id', $item['product']['value'])
                     ->orderBy('expiration_date', 'asc')
-                    ->take($item['unit'])
+                    ->take($item['quantity'])
                     ->pluck('id');
 
                 $stockIdsToDelete = array_merge($stockIdsToDelete, $stockItems->toArray());
 
                 $saleData[] = [
                     'user_id' => $request->user()->id,
-                    'product_id' => $item['id'],
+                    'product_id' => $item['product']['value'],
                     'receipt_id' => $receipt->id,
-                    'quantity' => $item['unit'],
-                    'price' => $item['price'],
+                    'quantity' => $item['quantity'],
+                    'price' => $item['product']['price'],
                     'created_at' => now(),
                     'updated_at' => now(),
                 ];
@@ -283,14 +315,16 @@ class InventoryController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Your Receipt Number is ' . $receipt->reference,
+                'message' => 'Your Receipt Number is '.$receipt->reference,
                 'receipt' => $receipt,
+                'reference' => $receipt->reference,
             ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
             // Log the error for debugging
             \Log::error($e->getMessage(), ['exception' => $e]);
+
             return response()->json([
                 'message' => 'An error occurred during the transaction.',
             ], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
@@ -326,15 +360,7 @@ class InventoryController extends Controller
                 ], ResponseAlias::HTTP_BAD_REQUEST);
             }
 
-            for ($i = 0; $i < $request->input('unit'); $i++) {
-                Stock::create([
-                    'product_id' => $product->id,
-                    'expiration_date' => $request->input('expire'),
-                ]);
-            }
-
-            $product->last_stock = $product->stocks_count + $request->input('unit');
-            $product->save();
+            RefillInventoryJob::dispatch($product, $request->input('unit'), $request->input('expire'));
 
             return \response()->json([
                 'message' => "$product->name Has Been Refilled Successfully!",
@@ -348,10 +374,7 @@ class InventoryController extends Controller
             ], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
-        $stocks = Stock::where('product_id', $product->id)
-            ->orderBy('expiration_date', 'asc')
-            ->take($request->input('unit'))
-            ->delete();
+        UnfillInventoryJob::dispatch($product, $request->input('unit'));
 
         return \response()->json([
             'message' => "$product->name has been reduced",
@@ -363,7 +386,7 @@ class InventoryController extends Controller
         Stock::destroy($id);
 
         return response()->json([
-            'message' => "Product Has Been Deleted!",
+            'message' => 'Product Has Been Deleted!',
         ], ResponseAlias::HTTP_OK);
     }
 
@@ -385,11 +408,15 @@ class InventoryController extends Controller
     {
         $receipt = Receipt::find($request->input('id'));
         $receipt->cash = $request->input('cash');
-        $receipt->fully_paid = $request->input('fully_paid');
+        if ($receipt->cash >= $receipt->amount) {
+            $receipt->fully_paid = 1;
+        } else {
+            $receipt->fully_paid = 0;
+        }
         $receipt->save();
 
         return response()->json([
-            'message' => "Receipt Has Been Updated!",
+            'message' => 'Receipt Has Been Updated!',
         ], ResponseAlias::HTTP_OK);
     }
 
@@ -404,7 +431,7 @@ class InventoryController extends Controller
         Product::destroy($id);
 
         return \response()->json([
-            'message' => "Product Has Been Deleted!",
+            'message' => 'Product Has Been Deleted!',
         ], ResponseAlias::HTTP_OK);
     }
 }

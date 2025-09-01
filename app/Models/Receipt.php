@@ -17,6 +17,11 @@ class Receipt extends Model
         'fully_paid',
     ];
 
+    protected $casts = [
+        'fully_paid' => 'boolean',
+        'amount' => 'string',
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

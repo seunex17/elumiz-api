@@ -8,7 +8,6 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class StaffController extends Controller
 {
-
     public function manage(Request $request)
     {
         $staffs = User::orderBy('name', 'asc')
@@ -30,10 +29,12 @@ class StaffController extends Controller
         }
 
         User::create([
-            'name' => $request->input('username'),
+            'name' => $request->input('name'),
             'email' => $request->input('email'),
             'password' => $request->input('password'),
             'role_id' => $request->input('role', 4),
+            'full_name' => $request->input('name'),
+            'profile_image' => '',
         ]);
 
         return response()->json([

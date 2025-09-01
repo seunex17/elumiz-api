@@ -9,13 +9,12 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class AuthController extends Controller
 {
-
     public function authenticate(Request $request)
     {
         $input = $request->all();
 
         $user = User::where('name', $input['name'])
-            ->withCount('role')
+            ->with('role')
             ->first();
         if (! $user || ! Hash::check($input['password'], $user->password)) {
             return response()->json([
@@ -23,7 +22,7 @@ class AuthController extends Controller
             ], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
-        //$user->tokens()->where('name', 'desktop')->delete();
+        // $user->tokens()->where('name', 'desktop')->delete();
 
         return response()->json([
             'user' => $user,

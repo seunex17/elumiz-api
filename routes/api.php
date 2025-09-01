@@ -1,21 +1,28 @@
 <?php
 
-    use App\Http\Controllers\AuthController;
-    use App\Http\Controllers\DashboardController;
-    use App\Http\Controllers\InventoryController;
-    use App\Http\Controllers\StaffController;
-    use Illuminate\Http\Request;
-    use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\StaffController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
+\Illuminate\Support\Facades\Log::info(print_r(\request()->all(), true));
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+Route::post('/test-connection', function () {
+    \Illuminate\Support\Facades\Log::info(print_r(\request()->all(), true));
+
+    return response()->json([], 200);
+});
 
 // AUTH ROUTES
 Route::post('/login', [AuthController::class, 'authenticate']);
 
 Route::middleware('auth:sanctum')->group(function () {
-    //Inventory Routes
+    // Inventory Routes
     Route::prefix('inventory')->group(function () {
         Route::get('/refill', [InventoryController::class, 'refill']);
         Route::get('/', [InventoryController::class, 'index']);
@@ -28,6 +35,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/outstanding', [InventoryController::class, 'outstandingReceipt']);
         Route::get('/load', [InventoryController::class, 'loadInventories']);
         Route::get('/load/print-data/{reference}', [InventoryController::class, 'loadPrintData']);
+        Route::get('receipts/today-sales', [InventoryController::class, 'todaySalesReceipt']);
+        Route::get('/receipts/weekly-sales', [InventoryController::class, 'weeklySalesReceipt']);
 
         Route::post('/store', [InventoryController::class, 'store']);
         Route::post('/refill/{type}', [InventoryController::class, 'refillStore']);
@@ -54,4 +63,3 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stocks', [DashboardController::class, 'stocks']);
     });
 });
-

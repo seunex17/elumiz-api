@@ -14,7 +14,6 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class DashboardController extends Controller
 {
-
     public function summery(Request $request): JsonResponse
     {
         $today = Carbon::today();
@@ -23,7 +22,7 @@ class DashboardController extends Controller
         $endOfWeek = Carbon::now()->endOfWeek();
         $lastWeekStart = Carbon::now()->subWeek()->startOfWeek();
         $lastWeekEnd = Carbon::now()->subWeek()->endOfWeek();
-        $user = User::find($request->get('user'));
+        $user = User::find($request->user()->id);
 
         $products = Product::count();
         $stocks = Stock::count();
@@ -78,13 +77,13 @@ class DashboardController extends Controller
         return response()->json([
             'products' => $products,
             'stocks' => $stocks,
-            'totalPriceToday' => $totalPriceToday,
+            'totalPriceToday' => (float) $totalPriceToday,
             'soonToExpireCount' => $soonToExpireCount,
             'staffs' => $staffs,
-            'totalAmountThisWeek' => $totalAmountThisWeek,
-            'lastWeekSales' => $lastWeekSales,
-            'outstanding' => $totalOutstanding,
-            'totalStockValue' => $totalStockValue,
+            'totalAmountThisWeek' => (float) $totalAmountThisWeek,
+            'lastWeekSales' => (float) $lastWeekSales,
+            'outstanding' => (float) $totalOutstanding,
+            'totalStockValue' => (float) $totalStockValue,
         ], ResponseAlias::HTTP_OK);
     }
 

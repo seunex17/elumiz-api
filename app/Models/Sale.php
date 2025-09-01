@@ -15,6 +15,11 @@ class Sale extends Model
         'price',
     ];
 
+    protected $casts = [
+        'quantity' => 'integer',
+        'price' => 'string',
+    ];
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
