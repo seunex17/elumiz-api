@@ -96,7 +96,6 @@ class InventoryController extends Controller
 
     public function stocks(string $id)
     {
-        $product = Product::find($id);
         $stocks = Stock::where('product_id', $id)->get();
 
         return response()->json($stocks, ResponseAlias::HTTP_OK);
@@ -184,6 +183,36 @@ class InventoryController extends Controller
         }
 
         return response()->json($receipts, ResponseAlias::HTTP_OK);
+    }
+
+    public function expiringSoon()
+    {
+        $date = Carbon::today()->addMonths(3);
+        $now = Carbon::now();
+
+        $products = Product::query()
+            ->withCount(['stocks' => function ($query) use ($now, $date) {
+                $query->whereBetween('expiration_date', [$now, $date]);
+            }])
+            ->having('stocks_count', '>', 0)
+            ->orderBy('stocks_count', 'desc')
+            ->get();
+
+        return response()->json($products, ResponseAlias::HTTP_OK);
+    }
+
+    public function expiringSoonStock(int $id)
+    {
+        $date = Carbon::today()->addMonths(3);
+        $now = Carbon::now();
+
+        $stocks = Stock::query()
+            ->where('product_id', $id)
+            ->whereBetween('expiration_date', [$now, $date])
+            ->oldest()
+            ->get();
+
+        return response()->json($stocks, ResponseAlias::HTTP_OK);
     }
 
     /*

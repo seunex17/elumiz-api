@@ -17,7 +17,8 @@ class DashboardController extends Controller
     public function summery(Request $request): JsonResponse
     {
         $today = Carbon::today();
-        $dateTwentyDaysFromNow = Carbon::today()->addDays(20);
+        $now = Carbon::now();
+        $dateThreeMonthFromNow = Carbon::today()->addMonths(3);
         $startOfWeek = Carbon::now()->startOfWeek();
         $endOfWeek = Carbon::now()->endOfWeek();
         $lastWeekStart = Carbon::now()->subWeek()->startOfWeek();
@@ -33,7 +34,7 @@ class DashboardController extends Controller
                 ->where('user_id', $request->get('user'))
                 ->sum('amount');
         }
-        $soonToExpireCount = Stock::whereDate('expiration_date', '<', $dateTwentyDaysFromNow)
+        $soonToExpireCount = Stock::query()->whereBetween('expiration_date', [$now, $dateThreeMonthFromNow])
             ->count();
         $staffs = User::where('id', '>', 1)->count();
 
