@@ -13,6 +13,8 @@
 
 namespace App\Jobs;
 
+use App\Events\DashboardSummeryEvent;
+use App\Events\RefreshInventoryEvent;
 use App\Models\Product;
 use App\Models\Stock;
 use Illuminate\Bus\Queueable;
@@ -51,5 +53,8 @@ class RefillInventoryJob implements ShouldQueue
 
         $this->product->last_stock = $this->product->stocks_count + $this->unit;
         $this->product->save();
+
+        DashboardSummeryEvent::dispatch();
+        RefreshInventoryEvent::dispatch();
     }
 }

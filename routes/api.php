@@ -7,14 +7,11 @@ use App\Http\Controllers\StaffController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-\Illuminate\Support\Facades\Log::info(print_r(\request()->all(), true));
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
 Route::post('/test-connection', function () {
-    \Illuminate\Support\Facades\Log::info(print_r(\request()->all(), true));
-
     return response()->json([], 200);
 });
 

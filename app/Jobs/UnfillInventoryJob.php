@@ -13,6 +13,8 @@
 
 namespace App\Jobs;
 
+use App\Events\DashboardSummeryEvent;
+use App\Events\RefreshInventoryEvent;
 use App\Models\Product;
 use App\Models\Stock;
 use Illuminate\Bus\Queueable;
@@ -42,5 +44,8 @@ class UnfillInventoryJob implements ShouldQueue
             ->orderBy('expiration_date', 'asc')
             ->take($this->unit)
             ->delete();
+
+        DashboardSummeryEvent::dispatch();
+        RefreshInventoryEvent::dispatch();
     }
 }

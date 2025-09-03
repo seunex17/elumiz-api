@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\DashboardSummeryEvent;
+use App\Events\RefreshInventoryEvent;
 use App\Jobs\RefillInventoryJob;
 use App\Jobs\UnfillInventoryJob;
 use App\Models\Product;
@@ -261,6 +263,8 @@ class InventoryController extends Controller
             }
         }
 
+        DashboardSummeryEvent::dispatch();
+
         return response()->json([
             'message' => 'New Product Has Been Added!',
         ], ResponseAlias::HTTP_CREATED);
@@ -343,6 +347,9 @@ class InventoryController extends Controller
 
             DB::commit();
 
+            DashboardSummeryEvent::dispatch();
+            RefreshInventoryEvent::dispatch();
+
             return response()->json([
                 'message' => 'Your Receipt Number is '.$receipt->reference,
                 'receipt' => $receipt,
@@ -414,6 +421,9 @@ class InventoryController extends Controller
     {
         Stock::destroy($id);
 
+        DashboardSummeryEvent::dispatch();
+        RefreshInventoryEvent::dispatch();
+
         return response()->json([
             'message' => 'Product Has Been Deleted!',
         ], ResponseAlias::HTTP_OK);
@@ -458,6 +468,9 @@ class InventoryController extends Controller
     public function delete(Request $request, string $id)
     {
         Product::destroy($id);
+
+        DashboardSummeryEvent::dispatch();
+        RefreshInventoryEvent::dispatch();
 
         return \response()->json([
             'message' => 'Product Has Been Deleted!',
