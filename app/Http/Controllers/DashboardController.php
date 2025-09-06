@@ -31,7 +31,7 @@ class DashboardController extends Controller
             $totalPriceToday = Receipt::whereDate('created_at', $today)->sum('amount');
         } else {
             $totalPriceToday = Receipt::whereDate('created_at', $today)
-                ->where('user_id', $request->get('user'))
+                ->where('user_id', $user->id)
                 ->sum('amount');
         }
         $soonToExpireCount = Stock::query()->whereBetween('expiration_date', [$now, $dateThreeMonthFromNow])
@@ -43,7 +43,7 @@ class DashboardController extends Controller
                 ->sum('amount');
         } else {
             $totalAmountThisWeek = Receipt::whereBetween('created_at', [$startOfWeek, $endOfWeek])
-                ->where('user_id', $request->get('user'))
+                ->where('user_id', $user->id)
                 ->sum('amount');
         }
 

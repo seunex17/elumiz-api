@@ -53,6 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::post('/add', [StaffController::class, 'addNewStaff']);
         Route::post('/delete/{id}', [StaffController::class, 'deleteStaff']);
+        Route::post('/update-password', [StaffController::class, 'updatePassword']);
     });
 
     // Dashboard Route

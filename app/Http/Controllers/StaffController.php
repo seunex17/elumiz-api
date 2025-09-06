@@ -42,6 +42,24 @@ class StaffController extends Controller
         ], ResponseAlias::HTTP_CREATED);
     }
 
+    public function updatePassword(Request $request)
+    {
+        if ($request->input('new_password') != $request->input('confirm_password')) {
+            return response()->json([
+                'message' => 'New password and confirm password does not match.',
+            ], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $user = User::find($request->input('user_id'));
+
+        $user->password = bcrypt($request->input('new_password'));
+        $user->save();
+
+        return response()->json([
+            'message' => 'Password Changed Successfully.',
+        ], ResponseAlias::HTTP_OK);
+    }
+
     public function deleteStaff(Request $request, string $id)
     {
 
