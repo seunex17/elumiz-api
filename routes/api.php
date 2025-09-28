@@ -36,6 +36,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/receipts/weekly-sales', [InventoryController::class, 'weeklySalesReceipt']);
         Route::get('/expiring-soon', [InventoryController::class, 'expiringSoon']);
         Route::get('expiring-soon-stock/{id}', [InventoryController::class, 'expiringSoonStock']);
+        Route::get('search-sales', [InventoryController::class, 'searchSales']);
 
         Route::post('/store', [InventoryController::class, 'store']);
         Route::post('/refill/{type}', [InventoryController::class, 'refillStore']);

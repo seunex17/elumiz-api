@@ -217,6 +217,33 @@ class InventoryController extends Controller
         return response()->json($stocks, ResponseAlias::HTTP_OK);
     }
 
+    public function searchSales(Request $request)
+    {
+        $startDate = $request->input('start');
+        $endDate = $request->input('end');
+
+        $start = Carbon::parse($startDate)->startOfDay();
+        $end = Carbon::parse($endDate)->endOfDay();
+
+        $query = Receipt::whereBetween('created_at', [$start, $end]);
+
+        if ($request->user()->role_id === 4) {
+            $query->where('user_id', $request->user()->id);
+        }
+
+        $sumQuery = clone $query;
+        $totalAmount = $sumQuery->sum('amount');
+
+        $receipts = $query->with('user.role')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        return response()->json([
+            'receipts' => $receipts,
+            'total_amount' => (float) $totalAmount,
+        ], ResponseAlias::HTTP_OK);
+    }
+
     /*
     ===============================================
     * Creating of data
