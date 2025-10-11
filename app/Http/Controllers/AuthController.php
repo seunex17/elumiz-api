@@ -29,4 +29,12 @@ class AuthController extends Controller
             'token' => $user->createToken('desktop')->plainTextToken,
         ], ResponseAlias::HTTP_OK);
     }
+
+    public function checkLogin(Request $request) {
+        $user = User::where('name', $request->user()->name)
+            ->with('role')
+            ->first();
+
+        return response()->json($user, ResponseAlias::HTTP_OK);
+    }
 }

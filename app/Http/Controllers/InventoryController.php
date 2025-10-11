@@ -45,7 +45,17 @@ class InventoryController extends Controller
             ->orderBy('name', 'asc')
             ->get();
 
-        return \response()->json($products, ResponseAlias::HTTP_OK);
+        return response()->json($products, ResponseAlias::HTTP_OK);
+    }
+
+    public function lowStock()
+    {
+        $products = Product::withCount('stocks')
+            ->having('stocks_count', '<', 11)
+            ->orderBy('stocks_count', 'asc')
+            ->get();
+
+        return response()->json($products, ResponseAlias::HTTP_OK);
     }
 
     public function sale()
@@ -244,6 +254,22 @@ class InventoryController extends Controller
         ], ResponseAlias::HTTP_OK);
     }
 
+    public function recentSales(Request $request)
+    {
+        $query = Receipt::query();
+
+        if ($request->user()->role_id === 4) {
+            $query->where('user_id', $request->user()->id);
+        }
+
+        $receipts = $query->with('user.role')
+            ->latest()
+            ->take(50)
+            ->get();
+
+        return response()->json($receipts, ResponseAlias::HTTP_OK);
+    }
+
     /*
     ===============================================
     * Creating of data
@@ -345,6 +371,11 @@ class InventoryController extends Controller
                 'fully_paid' => $paid,
             ]);
 
+            $singleReceipt = Receipt::query()
+            ->with('user.role')
+                ->where('reference', $receipt->reference)
+                ->first();
+
             // Step 3: Prepare and perform bulk operations
             $saleData = [];
             $stockIdsToDelete = [];
@@ -381,6 +412,7 @@ class InventoryController extends Controller
                 'message' => 'Your Receipt Number is '.$receipt->reference,
                 'receipt' => $receipt,
                 'reference' => $receipt->reference,
+                'single_receipt' => $singleReceipt,
             ]);
 
         } catch (\Exception $e) {
@@ -417,7 +449,7 @@ class InventoryController extends Controller
         $id = $request->input('id');
         $product = Product::withCount('stocks')->find($id);
         if ($type === 'add') {
-            if (! $request->has('expire')) {
+            if (! $request->has('expire') || $request->input('expire') === null) {
                 return response()->json([
                     'message' => 'Please set an expiry date',
                 ], ResponseAlias::HTTP_BAD_REQUEST);
@@ -473,7 +505,7 @@ class InventoryController extends Controller
     public function updateReceiptCash(Request $request)
     {
         $receipt = Receipt::find($request->input('id'));
-        $receipt->cash = $request->input('cash');
+        $receipt->cash = $receipt->cash + $request->input('cash');
         if ($receipt->cash >= $receipt->amount) {
             $receipt->fully_paid = 1;
         } else {

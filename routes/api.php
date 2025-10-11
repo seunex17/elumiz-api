@@ -37,6 +37,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/expiring-soon', [InventoryController::class, 'expiringSoon']);
         Route::get('expiring-soon-stock/{id}', [InventoryController::class, 'expiringSoonStock']);
         Route::get('search-sales', [InventoryController::class, 'searchSales']);
+        Route::get('low-stock', [InventoryController::class, 'lowStock']);
+        Route::get('/recent-sales', [InventoryController::class, 'recentSales']);
 
         Route::post('/store', [InventoryController::class, 'store']);
         Route::post('/refill/{type}', [InventoryController::class, 'refillStore']);
@@ -62,5 +64,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/summery', [DashboardController::class, 'summery']);
         Route::get('/today-sale', [DashboardController::class, 'todaySale']);
         Route::get('/stocks', [DashboardController::class, 'stocks']);
+    });
+
+    // Accounts
+    Route::prefix('account')->group(function () {
+        Route::get('check-login', [AuthController::class, 'checkLogin']);
     });
 });
