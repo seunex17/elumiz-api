@@ -372,7 +372,7 @@ class InventoryController extends Controller
             ]);
 
             $singleReceipt = Receipt::query()
-            ->with('user.role')
+                ->with('user.role')
                 ->where('reference', $receipt->reference)
                 ->first();
 
@@ -413,6 +413,7 @@ class InventoryController extends Controller
                 'receipt' => $receipt,
                 'reference' => $receipt->reference,
                 'single_receipt' => $singleReceipt,
+                'summery' => 'Your total purchase is '.number_format($totalPrice, 0).' naira. Thank you for your patronize.',
             ]);
 
         } catch (\Exception $e) {

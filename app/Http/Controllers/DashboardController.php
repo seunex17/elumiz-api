@@ -7,6 +7,7 @@ use App\Models\Receipt;
 use App\Models\Stock;
 use App\Models\User;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -119,5 +120,47 @@ class DashboardController extends Controller
             ->get();
 
         return response()->json($products, ResponseAlias::HTTP_OK);
+    }
+
+    public function dailySale(Request $request): JsonResponse
+    {
+        $today = Carbon::today();
+        $startDate = $today->startOfWeek(CarbonInterface::MONDAY)->toDateString();
+        $endDate = $today->endOfWeek(CarbonInterface::SUNDAY)->addDay()->toDateString();
+
+        // 2. Build the query
+        $query = DB::table('receipts')
+            ->select(
+                DB::raw('DATE(created_at) as sale_date'),
+                DB::raw('SUM(amount) as daily_total')
+            )
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->groupBy('sale_date')
+            ->orderBy('sale_date', 'asc');
+
+        if ($request->user()->role_id !== 4) {
+            $sales = $query->get();
+        } else {
+            $sales = $query->where('user_id', $request->user()->id)->get();
+        }
+
+        $dailySales = collect(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+            ->mapWithKeys(function ($dayName) {
+                return [$dayName => 0];
+            });
+
+        foreach ($sales as $sale) {
+            $date = Carbon::parse($sale->sale_date);
+            $dayName = $date->format('D');
+            $dailySales[$dayName] = $sale->daily_total;
+        }
+
+        $dataPoints = $dailySales->values()->all();
+        $labels = $dailySales->keys()->all();
+
+        return response()->json([
+            'labels' => $labels,
+            'data' => $dataPoints,
+        ]);
     }
 }

@@ -17,8 +17,12 @@ Route::post('/test-connection', function () {
 
 // AUTH ROUTES
 Route::post('/login', [AuthController::class, 'authenticate']);
+Route::post('add-device', [AuthController::class, 'addDevice']);
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/authenticate', [AuthController::class, 'authenticates']);
+
     // Inventory Routes
     Route::prefix('inventory')->group(function () {
         Route::get('/refill', [InventoryController::class, 'refill']);
@@ -64,6 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/summery', [DashboardController::class, 'summery']);
         Route::get('/today-sale', [DashboardController::class, 'todaySale']);
         Route::get('/stocks', [DashboardController::class, 'stocks']);
+        Route::get('daily-sale', [DashboardController::class, 'dailySale']);
     });
 
     // Accounts
