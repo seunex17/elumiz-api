@@ -29,32 +29,41 @@ class DashboardController extends Controller
         $products = Product::count();
         $stocks = Stock::count();
         if ($user->role_id !== 4) {
-            $totalPriceToday = Receipt::whereDate('created_at', $today)->sum('amount');
+            $totalPriceToday = Receipt::whereDate('created_at', $today)->sum('cash');
         } else {
             $totalPriceToday = Receipt::whereDate('created_at', $today)
                 ->where('user_id', $user->id)
+                ->sum('cash');
+        }
+
+        if ($user->role_id !== 4) {
+            $totalPriceMadeToday = Receipt::whereDate('created_at', $today)->sum('amount');
+        } else {
+            $totalPriceMadeToday = Receipt::whereDate('created_at', $today)
+                ->where('user_id', $user->id)
                 ->sum('amount');
         }
+
         $soonToExpireCount = Stock::query()->whereBetween('expiration_date', [$now, $dateThreeMonthFromNow])
             ->count();
         $staffs = User::where('id', '>', 1)->count();
 
         if ($user->role_id !== 4) {
             $totalAmountThisWeek = Receipt::whereBetween('created_at', [$startOfWeek, $endOfWeek])
-                ->sum('amount');
+                ->sum('cash');
         } else {
             $totalAmountThisWeek = Receipt::whereBetween('created_at', [$startOfWeek, $endOfWeek])
                 ->where('user_id', $user->id)
-                ->sum('amount');
+                ->sum('cash');
         }
 
         if ($user->role_id !== 4) {
             $lastWeekSales = Receipt::whereBetween('created_at', [$lastWeekStart, $lastWeekEnd])
-                ->sum('amount');
+                ->sum('cash');
         } else {
             $lastWeekSales = Receipt::whereBetween('created_at', [$lastWeekStart, $lastWeekEnd])
                 ->where('user_id', $request->get('user'))
-                ->sum('amount');
+                ->sum('cash');
         }
 
         $result = Receipt::where('fully_paid', 0)
@@ -86,6 +95,7 @@ class DashboardController extends Controller
             'lastWeekSales' => (float) $lastWeekSales,
             'outstanding' => (float) $totalOutstanding,
             'totalStockValue' => (float) $totalStockValue,
+            'totalPriceMadeToday' => (float) $totalPriceMadeToday,
         ], ResponseAlias::HTTP_OK);
     }
 

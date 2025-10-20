@@ -242,7 +242,7 @@ class InventoryController extends Controller
         }
 
         $sumQuery = clone $query;
-        $totalAmount = $sumQuery->sum('amount');
+        $totalAmount = $sumQuery->sum('cash');
 
         $receipts = $query->with('user.role')
             ->orderBy('id', 'desc')
