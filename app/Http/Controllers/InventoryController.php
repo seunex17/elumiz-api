@@ -519,6 +519,36 @@ class InventoryController extends Controller
         ], ResponseAlias::HTTP_OK);
     }
 
+    public function returnReceipt(string $id)
+    {
+        $receipt = Receipt::where('reference', $id)->first();
+
+        if (! $receipt) {
+            return response()->json([
+                'message' => 'Receipt not found!',
+            ], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $sales = Sale::where('receipt_id', $receipt->id)->get();
+        foreach ($sales as $sale) {
+            for ($i = 0; $i < $sale->quantity; $i++) {
+                Stock::create([
+                    'product_id' => $sale->product_id,
+                    'expiration_date' => now()->addDays(30),
+                ]);
+            }
+        }
+        $receipt->is_returned = 1;
+        $receipt->save();
+
+        DashboardSummeryEvent::dispatch();
+        RefreshInventoryEvent::dispatch();
+
+        return response()->json([
+            'message' => 'Receipt Has Been Returned!',
+        ], ResponseAlias::HTTP_OK);
+    }
+
     /*
     ===============================================
     * Deleting of data

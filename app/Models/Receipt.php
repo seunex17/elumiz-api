@@ -15,11 +15,13 @@ class Receipt extends Model
         'cash',
         'customer_name',
         'fully_paid',
+        'is_returned',
     ];
 
     protected $casts = [
         'fully_paid' => 'boolean',
         'amount' => 'string',
+        'is_returned' => 'boolean',
     ];
 
     public function user(): BelongsTo

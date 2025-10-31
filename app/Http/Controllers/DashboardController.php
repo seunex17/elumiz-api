@@ -29,17 +29,23 @@ class DashboardController extends Controller
         $products = Product::count();
         $stocks = Stock::count();
         if ($user->role_id !== 4) {
-            $totalPriceToday = Receipt::whereDate('created_at', $today)->sum('cash');
+            $totalPriceToday = Receipt::whereDate('created_at', $today)
+                ->where('is_returned', 0)
+                ->sum('cash');
         } else {
             $totalPriceToday = Receipt::whereDate('created_at', $today)
                 ->where('user_id', $user->id)
+                ->where('is_returned', 0)
                 ->sum('cash');
         }
 
         if ($user->role_id !== 4) {
-            $totalPriceMadeToday = Receipt::whereDate('created_at', $today)->sum('amount');
+            $totalPriceMadeToday = Receipt::whereDate('created_at', $today)
+                ->where('is_returned', 0)
+                ->sum('amount');
         } else {
             $totalPriceMadeToday = Receipt::whereDate('created_at', $today)
+                ->where('is_returned', 0)
                 ->where('user_id', $user->id)
                 ->sum('amount');
         }
@@ -50,23 +56,28 @@ class DashboardController extends Controller
 
         if ($user->role_id !== 4) {
             $totalAmountThisWeek = Receipt::whereBetween('created_at', [$startOfWeek, $endOfWeek])
+                ->where('is_returned', 0)
                 ->sum('cash');
         } else {
             $totalAmountThisWeek = Receipt::whereBetween('created_at', [$startOfWeek, $endOfWeek])
+                ->where('is_returned', 0)
                 ->where('user_id', $user->id)
                 ->sum('cash');
         }
 
         if ($user->role_id !== 4) {
             $lastWeekSales = Receipt::whereBetween('created_at', [$lastWeekStart, $lastWeekEnd])
+                ->where('is_returned', 0)
                 ->sum('cash');
         } else {
             $lastWeekSales = Receipt::whereBetween('created_at', [$lastWeekStart, $lastWeekEnd])
+                ->where('is_returned', 0)
                 ->where('user_id', $request->get('user'))
                 ->sum('cash');
         }
 
         $result = Receipt::where('fully_paid', 0)
+            ->where('is_returned', 0)
             ->select(
                 DB::raw('SUM(amount) as total_amount'),
                 DB::raw('SUM(cash) as total_cash'),

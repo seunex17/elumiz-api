@@ -52,6 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/update', [InventoryController::class, 'update']);
         Route::post('/delete/{id}', [InventoryController::class, 'delete']);
         Route::post('/update-receipt-cash', [InventoryController::class, 'updateReceiptCash']);
+        Route::post('/receipt/return/{id}', [InventoryController::class, 'returnReceipt']);
     });
 
     // Staff Routes
