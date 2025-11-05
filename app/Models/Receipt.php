@@ -16,6 +16,7 @@ class Receipt extends Model
         'customer_name',
         'fully_paid',
         'is_returned',
+        'discount',
     ];
 
     protected $casts = [

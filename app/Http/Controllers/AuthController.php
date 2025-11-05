@@ -74,4 +74,17 @@ class AuthController extends Controller
             'message' => 'Device added',
         ], ResponseAlias::HTTP_OK);
     }
+
+    public function updateDevice(Request $request)
+    {
+        $input = $request->input();
+        Device::where('user_id', $input['user_id'])
+            ->update([
+                'device_token' => $input['device_token'],
+            ]);
+
+        return response()->json([
+            'message' => 'Device updated',
+        ], ResponseAlias::HTTP_OK);
+    }
 }

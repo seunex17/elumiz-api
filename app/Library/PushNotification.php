@@ -30,7 +30,7 @@ class PushNotification
             $message = CloudMessage::new()
                 ->withData($data)
                 ->withHighestPossiblePriority()
-                ->toToken('eOKy1NW5SnKIJrInqZWEMP:APA91bEUzLKsqAHExwQFjaYc-hWSTQ5hw5OwS9nBftYAev9SBuX3vkji-D_JF8yq4THtoyuNULMybMu3m6yPBKgWR5Wa8oRnNuk-uKGhvGKrbxy2K2DC-yI');
+                ->toToken($device->device_token);
             app('firebase.messaging')->send($message);
         } catch (MessagingException $e) {
             Log::info($e->getMessage());

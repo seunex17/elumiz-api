@@ -18,6 +18,7 @@ Route::post('/test-connection', function () {
 // AUTH ROUTES
 Route::post('/login', [AuthController::class, 'authenticate']);
 Route::post('add-device', [AuthController::class, 'addDevice']);
+Route::post('/update-device', [AuthController::class, 'updateDevice']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);

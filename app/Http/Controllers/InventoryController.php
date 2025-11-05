@@ -332,6 +332,7 @@ class InventoryController extends Controller
         $totalPrice = $request->input('total');
         $cash = $request->input('cash');
         $customerName = $request->input('customer');
+        $discount = $request->input('discount');
 
         // Input validation
         if (count($items) === 0) {
@@ -369,6 +370,7 @@ class InventoryController extends Controller
                 'cash' => $cash,
                 'customer_name' => $customerName,
                 'fully_paid' => $paid,
+                'discount' => $discount,
             ]);
 
             $singleReceipt = Receipt::query()
