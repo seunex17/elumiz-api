@@ -22,6 +22,8 @@ class DashboardController extends Controller
         $dateThreeMonthFromNow = Carbon::today()->addMonths(3);
         $startOfWeek = Carbon::now()->startOfWeek();
         $endOfWeek = Carbon::now()->endOfWeek();
+        $startOfMonth = Carbon::now()->startOfMonth();
+        $endOfMonth = Carbon::now()->endOfMonth();
         $lastWeekStart = Carbon::now()->subWeek()->startOfWeek();
         $lastWeekEnd = Carbon::now()->subWeek()->endOfWeek();
         $user = User::find($request->user()->id);
@@ -60,6 +62,17 @@ class DashboardController extends Controller
                 ->sum('cash');
         } else {
             $totalAmountThisWeek = Receipt::whereBetween('created_at', [$startOfWeek, $endOfWeek])
+                ->where('is_returned', 0)
+                ->where('user_id', $user->id)
+                ->sum('cash');
+        }
+
+        if ($user->role_id !== 4) {
+            $totalAmountThisMonth = Receipt::whereBetween('created_at', [$startOfMonth, $endOfMonth])
+                ->where('is_returned', 0)
+                ->sum('cash');
+        } else {
+            $totalAmountThisMonth = Receipt::whereBetween('created_at', [$startOfMonth, $endOfMonth])
                 ->where('is_returned', 0)
                 ->where('user_id', $user->id)
                 ->sum('cash');
@@ -107,6 +120,7 @@ class DashboardController extends Controller
             'outstanding' => (float) $totalOutstanding,
             'totalStockValue' => (float) $totalStockValue,
             'totalPriceMadeToday' => (float) $totalPriceMadeToday,
+            'totalAmountThisMonth' => (float) $totalAmountThisMonth,
         ], ResponseAlias::HTTP_OK);
     }
 

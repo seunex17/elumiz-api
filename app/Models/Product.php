@@ -11,6 +11,7 @@ class Product extends Model
         'name',
         'price',
         'last_stock',
+        'cost_price',
     ];
 
     public function stocks(): HasMany

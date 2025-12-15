@@ -197,6 +197,24 @@ class InventoryController extends Controller
         return response()->json($receipts, ResponseAlias::HTTP_OK);
     }
 
+    public function monthlySalesReceipt(Request $request)
+    {
+        $startOfMonth = Carbon::now()->startOfMonth();
+        $endOfMonth = Carbon::now()->endOfMonth();
+
+        $query = Receipt::with('user.role')
+            ->orderBy('id', 'desc')
+            ->whereBetween('created_at', [$startOfMonth, $endOfMonth]);
+
+        if ($request->user()->role_id !== 4) {
+            $receipts = $query->get();
+        } else {
+            $receipts = $query->where('user_id', $request->user()->id)->get();
+        }
+
+        return response()->json($receipts, ResponseAlias::HTTP_OK);
+    }
+
     public function expiringSoon()
     {
         $date = Carbon::today()->addMonths(3);
@@ -333,11 +351,22 @@ class InventoryController extends Controller
         $cash = $request->input('cash');
         $customerName = $request->input('customer');
         $discount = $request->input('discount');
+        $uuid = $request->input('uuid');
+
+        $request->validate([
+            'uuid' => 'required',
+        ]);
 
         // Input validation
         if (count($items) === 0) {
             return response()->json([
                 'message' => 'Please select at least one product!',
+            ], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (Receipt::query()->where('uuid', $uuid)->exists()) {
+            return response()->json([
+                'message' => 'Duplicated receipt blocked',
             ], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -371,6 +400,7 @@ class InventoryController extends Controller
                 'customer_name' => $customerName,
                 'fully_paid' => $paid,
                 'discount' => $discount,
+                'uuid' => $uuid,
             ]);
 
             $singleReceipt = Receipt::query()
@@ -452,6 +482,9 @@ class InventoryController extends Controller
         $id = $request->input('id');
         $product = Product::withCount('stocks')->find($id);
         if ($type === 'add') {
+            $product->cost_price = $request->input('cost_price', $product->cost_price);
+            $product->save();
+
             if (! $request->has('expire') || $request->input('expire') === null) {
                 return response()->json([
                     'message' => 'Please set an expiry date',
@@ -476,6 +509,43 @@ class InventoryController extends Controller
 
         return \response()->json([
             'message' => "$product->name has been reduced",
+        ], ResponseAlias::HTTP_OK);
+    }
+
+    public function addInventories(Request $request)
+    {
+        $data = $request->input();
+
+        if (! is_array($data)) {
+            return \response()->json([
+                'message' => 'Invalid payload: "data" must be an array of items.',
+            ], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        foreach ($data as $item) {
+            // basic guards against missing fields
+            if (! isset($item['id'], $item['cost_price'], $item['quantity'], $item['expire'])) {
+                return \response()->json([
+                    'message' => 'Each item must include id, cost_price, quantity, and expire.',
+                ], ResponseAlias::HTTP_BAD_REQUEST);
+            }
+
+            $product = Product::withCount('stocks')->find($item['id']);
+            if (! $product) {
+                return \response()->json([
+                    'message' => 'Product not found for ID: '.$item['id'],
+                ], ResponseAlias::HTTP_BAD_REQUEST);
+            }
+
+            $product->cost_price = $item['cost_price'];
+            $product->save();
+
+            // Use the current item's quantity and expire fields
+            RefillInventoryJob::dispatch($product, $item['quantity'], $item['expire']);
+        }
+
+        return \response()->json([
+            'message' => 'Products refilled Successfully!',
         ], ResponseAlias::HTTP_OK);
     }
 
